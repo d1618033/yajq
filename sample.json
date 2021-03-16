@@ -1,0 +1,12 @@
+{
+    "people": [
+        {
+            "name": "Adam Smith",
+            "email": "adams@company.com"
+        },
+        {
+            "name": "Eve Smith",
+            "email": "eves@company.com"
+        }
+    ]
+}
