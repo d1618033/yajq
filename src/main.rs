@@ -26,7 +26,14 @@ enum YajqError {
 
 type Result<T> = result::Result<T, YajqError>;
 
-fn main() -> Result<()> {
+
+fn main() {
+    if let Err(e) = run() {
+        println!("{}", e);
+    }
+}
+
+fn run() -> Result<()> {
     let matches = App::new("YAJQ")
         .version("1.0")
         .author("David Sternlicht <d1618033@gmail.com>")
@@ -54,9 +61,8 @@ enum Expression<'a> {
 fn parse_expression(expression: &str) -> Vec<Expression> {
     expression
         .split(".")
-        .collect::<Vec<&str>>()
-        .iter()
-        .map(|element| match *element {
+        .into_iter()
+        .map(|element| match element {
             "*" => Expression::Any,
             _ => Expression::Key(element),
         })
@@ -66,29 +72,35 @@ fn parse_expression(expression: &str) -> Vec<Expression> {
 fn filter(data: Value, tokens: Vec<Expression>) -> Result<Value> {
     let mut current = data.clone();
     for (i, expr) in tokens.iter().enumerate() {
-        match expr {
+        match *expr {
             Expression::Any => {
                 return match current {
                     Value::Array(array) => {
-                        let mut result: Vec<Value> = Vec::new();
-                        for element in array {
-                            result.push(filter(element.clone(), tokens[i + 1..].to_vec())?)
-                        }
-                        Ok(Value::Array(result))
+                        let result: Result<Vec<Value>> = array
+                            .iter()
+                            .map(|element| filter(element.clone(), tokens[i + 1..].to_vec()))
+                            .collect();
+                        Ok(Value::Array(result?))
                     }
-                    _ => Err(YajqError::FilteringError(
-                        "Can't use * on non array".to_string(),
-                    )),
+                    _ => Err(YajqError::FilteringError(format!(
+                        "Can't use * on non array"
+                    ))),
                 };
             }
             Expression::Key(expr) => {
                 current = match current {
-                    Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => Err(
-                        YajqError::FilteringError("Unit can't be filtered".to_string()),
-                    ),
+                    Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+                        Err(YajqError::FilteringError(format!(
+                            "Unit can't be filtered for key {}",
+                            expr
+                        )))
+                    }
                     Value::Object(object) => Ok(object
-                        .get(&expr.to_string())
-                        .ok_or(YajqError::FilteringError("Key not in dict".to_string()))?
+                        .get(expr)
+                        .ok_or(YajqError::FilteringError(format!(
+                            "Key {} not in dict",
+                            expr
+                        )))?
                         .to_owned()),
                     Value::Array(array) => Ok(array[expr.parse::<usize>()?].to_owned()),
                 }?
