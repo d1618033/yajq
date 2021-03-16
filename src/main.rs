@@ -1,5 +1,3 @@
-extern crate clap;
-
 use clap::{App, Arg};
 use serde_json;
 use serde_json::Value;
@@ -8,6 +6,9 @@ use std::io::Read;
 use std::num;
 use std::result;
 use thiserror::Error;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
 
 #[derive(Error, Debug)]
 enum YajqError {
@@ -38,8 +39,9 @@ fn run() -> Result<()> {
         .author("David Sternlicht <d1618033@gmail.com>")
         .about("Yet Another Json Query Language")
         .arg(Arg::with_name("expression"))
+        .arg(Arg::with_name("file").value_name("FILE").long("file").takes_value(true))
         .get_matches();
-    let data = parse_data()?;
+    let data = parse_data(matches.value_of("file"))?;
     let filtered = match matches.value_of("expression") {
         Some(expr) => {
             let tokens = parse_expression(expr);
@@ -104,10 +106,19 @@ fn filter(data: &Value, tokens: Vec<Token>) -> Result<Value> {
     }
 }
 
-fn parse_data() -> Result<Value> {
-    let mut buffer = String::new();
-    io::stdin().read_to_string(&mut buffer)?;
-    Ok(serde_json::from_str(&buffer)?)
+fn parse_data(path: Option<&str>) -> Result<Value> {
+    match path {
+        Some(path) => {   
+            let file = File::open(Path::new(path))?;
+            let reader = BufReader::new(file);
+            Ok(serde_json::from_reader(reader)?)
+        },
+        None => {
+            let mut buffer = String::new();
+            io::stdin().read_to_string(&mut buffer)?;
+            Ok(serde_json::from_str(&buffer)?)
+        }
+    }
 }
 
 #[cfg(test)]
