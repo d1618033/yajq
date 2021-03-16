@@ -52,28 +52,28 @@ fn run() -> Result<()> {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-enum Expression<'a> {
+enum Token<'a> {
     Any,
     Key(&'a str),
 }
 
-fn parse_expression(expression: &str) -> Vec<Expression> {
+fn parse_expression(expression: &str) -> Vec<Token> {
     expression
         .split(".")
         .into_iter()
         .map(|element| match element {
-            "*" => Expression::Any,
-            _ => Expression::Key(element),
+            "*" => Token::Any,
+            _ => Token::Key(element),
         })
         .collect()
 }
 
-fn filter(data: &Value, tokens: Vec<Expression>) -> Result<Value> {
+fn filter(data: &Value, tokens: Vec<Token>) -> Result<Value> {
     if tokens.len() == 0 {
         Ok(data.to_owned())
     } else {
         return match tokens[0] {
-            Expression::Any => match data {
+            Token::Any => match data {
                 Value::Array(array) => {
                     let result: Result<Vec<Value>> = array
                         .iter()
@@ -85,18 +85,18 @@ fn filter(data: &Value, tokens: Vec<Expression>) -> Result<Value> {
                     "Can't use * on non array"
                 ))),
             },
-            Expression::Key(expr) => filter(
+            Token::Key(key) => filter(
                 match data {
                     Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
                         Err(YajqError::FilteringError(format!(
                             "Unit can't be filtered for key {}",
-                            expr
+                            key
                         )))
                     }
-                    Value::Object(object) => Ok(object.get(expr).ok_or(
-                        YajqError::FilteringError(format!("Key {} not in dict", expr)),
+                    Value::Object(object) => Ok(object.get(key).ok_or(
+                        YajqError::FilteringError(format!("Key {} not in dict", key)),
                     )?),
-                    Value::Array(array) => Ok(&array[expr.parse::<usize>()?]),
+                    Value::Array(array) => Ok(&array[key.parse::<usize>()?]),
                 }?,
                 tokens[1..].to_vec(),
             ),
@@ -119,10 +119,10 @@ mod test {
         assert_eq!(
             parse_expression("a.12.*.c"),
             vec![
-                Expression::Key("a"),
-                Expression::Key("12"),
-                Expression::Any,
-                Expression::Key("c")
+                Token::Key("a"),
+                Token::Key("12"),
+                Token::Any,
+                Token::Key("c")
             ]
         );
     }
