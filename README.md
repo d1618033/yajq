@@ -4,6 +4,13 @@ YAJQ
 
 Yet Another Json Query language, in Rust!
 
+Installation
+============
+
+```
+cargo install --git https://github.com/d1618033/yajq
+```
+
 
 Usage
 =====
