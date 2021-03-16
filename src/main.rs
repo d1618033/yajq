@@ -26,7 +26,6 @@ enum YajqError {
 
 type Result<T> = result::Result<T, YajqError>;
 
-
 fn main() {
     if let Err(e) = run() {
         println!("{}", e);
@@ -70,44 +69,47 @@ fn parse_expression(expression: &str) -> Vec<Expression> {
 }
 
 fn filter(data: Value, tokens: Vec<Expression>) -> Result<Value> {
-    let mut current = data.clone();
-    for (i, expr) in tokens.iter().enumerate() {
-        match *expr {
+    if tokens.len() == 0 {
+        Ok(data)
+    } else {
+        return match tokens[0] {
             Expression::Any => {
-                return match current {
+                match data {
                     Value::Array(array) => {
                         let result: Result<Vec<Value>> = array
                             .iter()
-                            .map(|element| filter(element.clone(), tokens[i + 1..].to_vec()))
+                            .map(|element| filter(element.clone(), tokens[1..].to_vec()))
                             .collect();
                         Ok(Value::Array(result?))
                     }
                     _ => Err(YajqError::FilteringError(format!(
                         "Can't use * on non array"
                     ))),
-                };
+                }
             }
             Expression::Key(expr) => {
-                current = match current {
-                    Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-                        Err(YajqError::FilteringError(format!(
-                            "Unit can't be filtered for key {}",
-                            expr
-                        )))
-                    }
-                    Value::Object(object) => Ok(object
-                        .get(expr)
-                        .ok_or(YajqError::FilteringError(format!(
-                            "Key {} not in dict",
-                            expr
-                        )))?
-                        .to_owned()),
-                    Value::Array(array) => Ok(array[expr.parse::<usize>()?].to_owned()),
-                }?
+                filter(
+                    match data {
+                        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+                            Err(YajqError::FilteringError(format!(
+                                "Unit can't be filtered for key {}",
+                                expr
+                            )))
+                        }
+                        Value::Object(object) => Ok(object
+                            .get(expr)
+                            .ok_or(YajqError::FilteringError(format!(
+                                "Key {} not in dict",
+                                expr
+                            )))?
+                            .to_owned()),
+                        Value::Array(array) => Ok(array[expr.parse::<usize>()?].to_owned()),
+                    }?,
+                    tokens[1..].to_vec(),
+                )
             }
         }
     }
-    Ok(current)
 }
 
 fn parse_data() -> Result<Value> {
