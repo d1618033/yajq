@@ -166,4 +166,14 @@ mod test {
             parse_data_(r#"["value1", "value2"]"#)
         )
     }
+    #[test]
+    fn test_filter_multiple_stars() {
+        assert_eq!(
+            filter_(
+                r#"{"x": [[{"name": "value1"}], [{"name": "value2"}]]}"#,
+                "x.*.*.name"
+            ),
+            parse_data_(r#"[["value1"], ["value2"]]"#)
+        )
+    }
 }
