@@ -43,7 +43,7 @@ fn run() -> Result<()> {
     let filtered = match matches.value_of("expression") {
         Some(expr) => {
             let tokens = parse_expression(expr);
-            filter(data, tokens)?
+            filter(&data, tokens)?
         }
         None => data,
     };
@@ -68,47 +68,39 @@ fn parse_expression(expression: &str) -> Vec<Expression> {
         .collect()
 }
 
-fn filter(data: Value, tokens: Vec<Expression>) -> Result<Value> {
+fn filter(data: &Value, tokens: Vec<Expression>) -> Result<Value> {
     if tokens.len() == 0 {
-        Ok(data)
+        Ok(data.to_owned())
     } else {
         return match tokens[0] {
-            Expression::Any => {
-                match data {
-                    Value::Array(array) => {
-                        let result: Result<Vec<Value>> = array
-                            .iter()
-                            .map(|element| filter(element.clone(), tokens[1..].to_vec()))
-                            .collect();
-                        Ok(Value::Array(result?))
-                    }
-                    _ => Err(YajqError::FilteringError(format!(
-                        "Can't use * on non array"
-                    ))),
+            Expression::Any => match data {
+                Value::Array(array) => {
+                    let result: Result<Vec<Value>> = array
+                        .iter()
+                        .map(|element| filter(element, tokens[1..].to_vec()).map(|v| v.to_owned()))
+                        .collect();
+                    Ok(Value::Array(result?))
                 }
-            }
-            Expression::Key(expr) => {
-                filter(
-                    match data {
-                        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-                            Err(YajqError::FilteringError(format!(
-                                "Unit can't be filtered for key {}",
-                                expr
-                            )))
-                        }
-                        Value::Object(object) => Ok(object
-                            .get(expr)
-                            .ok_or(YajqError::FilteringError(format!(
-                                "Key {} not in dict",
-                                expr
-                            )))?
-                            .to_owned()),
-                        Value::Array(array) => Ok(array[expr.parse::<usize>()?].to_owned()),
-                    }?,
-                    tokens[1..].to_vec(),
-                )
-            }
-        }
+                _ => Err(YajqError::FilteringError(format!(
+                    "Can't use * on non array"
+                ))),
+            },
+            Expression::Key(expr) => filter(
+                match data {
+                    Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+                        Err(YajqError::FilteringError(format!(
+                            "Unit can't be filtered for key {}",
+                            expr
+                        )))
+                    }
+                    Value::Object(object) => Ok(object.get(expr).ok_or(
+                        YajqError::FilteringError(format!("Key {} not in dict", expr)),
+                    )?),
+                    Value::Array(array) => Ok(&array[expr.parse::<usize>()?]),
+                }?,
+                tokens[1..].to_vec(),
+            ),
+        };
     }
 }
 
@@ -137,10 +129,11 @@ mod test {
 
     fn filter_(data: &str, expression: &str) -> Value {
         filter(
-            serde_json::from_str(data).unwrap(),
+            &serde_json::from_str(data).unwrap(),
             parse_expression(expression),
         )
         .unwrap()
+        .to_owned()
     }
     fn parse_data_(data: &str) -> Value {
         serde_json::from_str(data).unwrap()
